@@ -1,0 +1,2 @@
+# Install with: python -m pip install -r app/evaluation/requirements.txt
+great-expectations==1.22.0
