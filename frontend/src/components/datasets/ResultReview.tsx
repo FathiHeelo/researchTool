@@ -27,13 +27,16 @@ export function ResultReview({ projectId, runId, result }: { projectId: string; 
     finally { setBusy(false) }
   }
   const snapshot = result.snapshot as { case?: { requirement?: unknown; expected_rule?: unknown; metadata?: unknown }; response?: { generated_output?: unknown } }
-  return <section aria-label="Research review" className="space-y-3 border-t pt-3">
-    <div className="grid gap-3 md:grid-cols-3">{[['Requirement', snapshot.case?.requirement], ['Expected Rule', snapshot.case?.expected_rule], ['Model Output', snapshot.response?.generated_output]].map(([label, value]) => <div key={String(label)}><h4 className="font-medium">{String(label)}</h4><pre className="whitespace-pre-wrap text-sm">{String(value ?? '')}</pre></div>)}</div>
+  return <section aria-label="Research review" className="review-layout">
+    <div className="review-source">{[['Requirement', snapshot.case?.requirement], ['Expected Rule', snapshot.case?.expected_rule], ['Model Output', snapshot.response?.generated_output]].map(([label, value]) => <div className="source-panel" key={String(label)}><h4 className="font-medium">{String(label)}</h4><pre className="whitespace-pre-wrap text-sm">{String(value ?? '')}</pre></div>)}</div>
+    <div className="review-inspector">
     {error && <p role="alert">{error}</p>}
     {!review && !error && <p>Loading review…</p>}
     {review && <>
+      <h2>Evaluation Score Breakdown</h2>
       <p>Accepted Overall Accuracy: {review.accepted_overall_accuracy ?? 'Unavailable'}%</p>
       <div className="overflow-x-auto"><table aria-label="Review scores" className="w-full text-left text-sm"><thead><tr><th>Metric</th><th>Automated</th><th>Researcher Override</th><th>Accepted Final</th></tr></thead><tbody>{Object.entries(review.automated_scores).map(([key, automated]) => <tr key={key}><th>{key}</th><td>{automated ?? 'Unavailable'}</td><td><input aria-label={`Override ${key}`} type="number" min={review.metric_configuration?.find(m => m.key === key)?.min_score ?? 0} max={review.metric_configuration?.find(m => m.key === key)?.max_score ?? 1} step="any" disabled={busy} value={scores[key] ?? ''} onChange={event => setScores(previous => ({ ...previous, [key]: Number(event.target.value) }))} className="w-24 border p-1" /><span>Saved override: {review.override_scores[key] ?? 'None'}</span></td><td>{review.accepted_scores[key] ?? 'Unavailable'}</td></tr>)}</tbody></table></div>
+      <h2 className="inspector-heading">Active Researcher Override</h2>
       <label className="block">Reason<input aria-label="Review reason" value={reason} onChange={event => setReason(event.target.value)} className="w-full border p-2" /></label>
       <label className="block">Researcher note<textarea aria-label="Review note" value={note} onChange={event => setNote(event.target.value)} className="w-full border p-2" /></label>
       <label className="block">Error tags (one per line)<textarea aria-label="Review error tags" value={tags} onChange={event => setTags(event.target.value)} className="w-full border p-2" /></label>
@@ -42,6 +45,6 @@ export function ResultReview({ projectId, runId, result }: { projectId: string; 
       <pre className="overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify({ automated_errors: result.error_tags, automated_notes: result.notes, hallucinated_functions: result.hallucinated_functions, imported_metadata: snapshot.case?.metadata, ground_truth_warnings: review.ground_truth_warnings }, null, 2)}</pre>
       <h4 className="font-medium">Audit history</h4><pre className="overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(review.audit_history, null, 2)}</pre>
     </>}
-    <RaterReview key={result.id} projectId={projectId} runId={runId} resultId={result.id}/>
+    </div><div className="review-secondary"><RaterReview key={result.id} projectId={projectId} runId={runId} resultId={result.id}/></div>
   </section>
 }

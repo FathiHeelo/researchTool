@@ -1,3 +1,4 @@
+import { ReportActions } from './ReportPrimitives'
 import { useEffect, useState } from 'react'
 import { evaluationApi, type EvaluationRun } from '../../api/client'
 import { researchApi, type ResearchAnalysis, type ResearchRecord } from '../../api/research'
@@ -19,9 +20,10 @@ export function ResearchTable({title, rows, empty = 'No data available'}: {title
   const keys = [...new Set(rows.flatMap(row => Object.keys(row)))]
   return <section className="space-y-2"><h3 className="font-medium">{title}</h3>{!rows.length ? <p>{empty}</p> : <div className="overflow-x-auto"><table aria-label={title} className="w-full text-left text-sm"><thead><tr>{keys.map(k => <th className="p-2" key={k}>{k.replaceAll('_', ' ')}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr className="border-t" key={i}>{keys.map(k => <td className="max-w-sm break-words p-2" key={k}>{value(r[k])}</td>)}</tr>)}</tbody></table></div>}</section>
 }
-export function ResearchAnalytics({projectId}: {projectId: string}) {
+export function ResearchAnalytics({projectId, initialTab, selectedRunId, onRunChange}: {projectId: string; initialTab?: string; selectedRunId?: string; onRunChange?: (id:string)=>void}) {
   const [runs, setRuns] = useState<EvaluationRun[]>([])
-  const [run, setRun] = useState('')
+  const [run, setRun] = useState(selectedRunId || '')
+  useEffect(()=>{if(selectedRunId!==undefined)setRun(selectedRunId)},[selectedRunId])
   const [model, setModel] = useState('')
   const [strategy, setStrategy] = useState('')
   const [dimension, setDimension] = useState('')
@@ -31,7 +33,8 @@ export function ResearchAnalytics({projectId}: {projectId: string}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [tab, setTab] = useState('Overview')
+  const [tab, setTab] = useState(initialTab || 'Overview')
+  useEffect(()=>{if(initialTab)setTab(initialTab)},[initialTab])
   const [exporting, setExporting] = useState(false)
   const [exportStatus, setExportStatus] = useState('')
   const [exportError, setExportError] = useState('')
@@ -78,10 +81,11 @@ export function ResearchAnalytics({projectId}: {projectId: string}) {
       setExportStatus('Export downloaded.')
     } catch {setExportError('Unable to export. Please retry.')} finally {setExporting(false)}
   }
-  return <section className="space-y-4 rounded border bg-white p-5"><h2 className="text-lg font-medium">Research Analysis & Export</h2>
-    <div className="flex flex-wrap gap-3"><select aria-label="Research run" value={run} disabled={exporting} onChange={e => setRun(e.target.value)}><option value="">All runs</option>{runs.map(r => <option key={r.id} value={r.id}>Run {r.id}</option>)}</select>
+  return <section className="analysis-screen space-y-4"><div className="screen-heading"><h1>{["Agreement","Statistical Comparison"].includes(tab)?"Statistical Significance & Model Agreement":"Research Analysis & Export"}</h1><p>Matched-case comparisons, model agreement, and accepted-score research evidence.</p></div>
+    <div className="flex flex-wrap gap-3"><select aria-label="Research run" value={run} disabled={exporting} onChange={e => {setRun(e.target.value);onRunChange?.(e.target.value)}}><option value="">All runs</option>{runs.map(r => <option key={r.id} value={r.id}>Run {r.id}</option>)}</select>
       <select aria-label="Research model" value={model} onChange={e => setModel(e.target.value)}><option value="">All models</option>{models.map(m => <option key={m}>{m}</option>)}</select>
       <label><input type="checkbox" disabled={exporting} checked={included} onChange={e => setIncluded(e.target.checked)}/> Include ground-truth warnings</label><button onClick={() => setReload(n => n+1)}>Refresh analysis</button></div>
+    <ReportActions projectId={projectId} run={runs.find(r=>String(r.id)===run)}/>
     <p>Flagged ground-truth cases: {included ? 'Included' : 'Excluded'}. {data ? `${data.filtered_results} responses / ${data.filtered_cases} cases filtered.` : ''}</p>
     <button disabled={!run} onClick={applyRunProtocol}>Use selected run’s protocol analysis settings</button>
     <label className="block">Experiment Variant <select aria-label="Experiment Variant metadata" value={variant} onChange={e=>setVariant(e.target.value)}><option value="">Choose metadata key</option>{keys.map(k=><option key={k}>{k}</option>)}</select></label>
@@ -112,6 +116,6 @@ function AgreementMatrix({rows}: {rows: ResearchRecord[]}) {
   return <>{strategies.map((strategy, i) => {
     const scoped = rows.filter(r => r.strategy === strategy)
     const names = [...new Set(scoped.flatMap(r => [String(r.model_a), String(r.model_b)]))].sort()
-    return <section key={i}><h3>Agreement matrix — {value(strategy ?? 'All strategies')}</h3><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead><tr><th>Model</th>{names.map(n => <th key={n}>{n}</th>)}</tr></thead><tbody>{names.map(a => <tr key={a}><th>{a}</th>{names.map(b => <td className="p-2" key={b}>{a === b ? '—' : value(scoped.find(r => (r.model_a === a && r.model_b === b) || (r.model_a === b && r.model_b === a))?.agreement_rate)}</td>)}</tr>)}</tbody></table></div></section>
+    return <section key={i}><h3>Agreement matrix — {value(strategy ?? 'All strategies')}</h3><div className="overflow-x-auto"><table className="agreement-matrix w-full text-sm text-left"><thead><tr><th>Model</th>{names.map(n => <th key={n}>{n}</th>)}</tr></thead><tbody>{names.map(a => <tr key={a}><th>{a}</th>{names.map(b => <td className="p-2" key={b}>{a === b ? '—' : value(scoped.find(r => (r.model_a === a && r.model_b === b) || (r.model_a === b && r.model_b === a))?.agreement_rate)}</td>)}</tr>)}</tbody></table></div></section>
   })}</>
 }

@@ -1,3 +1,6 @@
+import { ThemeIcon } from '../ThemeIcon'
+import { DimensionDistribution } from './DimensionDistribution'
+import { ModelPerformance, ReportActions } from './ReportPrimitives'
 import { useEffect, useState } from 'react'
 import { evaluationApi, type DashboardSummary, type EvaluationRun } from '../../api/client'
 
@@ -9,9 +12,10 @@ function count(value: number | null | undefined) {
   return typeof value === 'number' ? value.toLocaleString() : '0'
 }
 
-export function ResearchDashboard({ projectId }: { projectId: string }) {
+export function ResearchDashboard({ projectId, selectedRunId, onRunChange }: { projectId: string; selectedRunId?: string; onRunChange?: (id:string)=>void }) {
   const [runs, setRuns] = useState<EvaluationRun[]>([])
-  const [runId, setRunId] = useState('')
+  const [runId, setRunId] = useState(selectedRunId || '')
+  useEffect(()=>{if(selectedRunId!==undefined)setRunId(selectedRunId)},[selectedRunId])
   const [model, setModel] = useState('')
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -51,6 +55,7 @@ export function ResearchDashboard({ projectId }: { projectId: string }) {
   const models = summary?.models.map(item => item.model) || []
   const cards = [
     ['Responses Evaluated', count(summary?.total_evaluated_responses)],
+    ['Benchmark Cases', count(summary?.total_unique_cases)],
     ['Models', count(summary?.total_models)],
     ['Average Overall Accuracy', percent(summary?.average_overall_accuracy)],
     ['Reliability', percent(summary?.reliability)],
@@ -58,14 +63,14 @@ export function ResearchDashboard({ projectId }: { projectId: string }) {
     ['Ground Truth Warnings', count(summary?.ground_truth_warning_results)],
   ]
 
-  return <section className="space-y-4 rounded border bg-white p-5">
+  return <section className="overview-screen space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-lg font-medium">Research Dashboard</h2>
+      <div className="screen-heading"><h1>Research Overview Dashboard</h1><p>Comprehensive benchmark evaluation across {summary?.total_evaluated_responses.toLocaleString() ?? "?"} responses and {summary?.total_models ?? "?"} models.</p></div>
       <button className="underline" onClick={() => setReload(value => value + 1)}>Refresh dashboard</button>
     </div>
-    <div className="flex flex-wrap gap-2 text-sm">
+    <div className="scope-toolbar flex flex-wrap gap-2 text-sm">
       <label><input type="checkbox" checked={included} onChange={e => setIncluded(e.target.checked)}/> Include flagged ground-truth cases</label>
-      <select aria-label="Dashboard run filter" value={runId} onChange={event => setRunId(event.target.value)} className="rounded border p-2">
+      <select aria-label="Dashboard run filter" value={runId} onChange={event => {setRunId(event.target.value);onRunChange?.(event.target.value)}} className="rounded border p-2">
         <option value="">All runs</option>
         {runs.map(run => <option key={run.id} value={run.id}>Run {run.id} - {run.status}</option>)}
       </select>
@@ -74,35 +79,23 @@ export function ResearchDashboard({ projectId }: { projectId: string }) {
         {models.map(name => <option key={name} value={name}>{name}</option>)}
       </select>
     </div>
+    <ReportActions projectId={projectId} run={runs.find(r=>String(r.id)===runId)}/>
     {loading && <p role="status">Loading dashboard...</p>}
     <p className="text-sm">Ground-truth warnings: {included ? 'Included' : 'Excluded'}{summary ? `; ${summary.filtered_results ?? 0} responses / ${summary.filtered_cases ?? 0} cases filtered.` : ''}</p>
     {error && <p role="alert">{error}</p>}
     {summary && !loading && <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map(([label, value]) => <div key={label} className="rounded border border-slate-200 p-3">
-          <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-1 text-xl font-semibold">{value}</p>
+      <div className="kpi-grid">
+        {cards.map(([label, value]) => <div key={label} className="kpi">
+          <p className="kpi-label">{label}<ThemeIcon name={label.includes("Accuracy") ? "shield" : "chart"}/></p>
+          <strong>{value}</strong><small className="muted">{label.includes("Accuracy") ? "Accepted weighted score" : "Current filtered scope"}</small>
         </div>)}
       </div>
       {!summary.total_evaluated_responses && <p>No evaluated responses yet.</p>}
-      <div className="overflow-x-auto">
-        <table aria-label="Model performance" className="w-full text-left text-sm">
-          <thead><tr>{['Model', 'Responses', 'Accuracy', 'Reliability', 'Hallucination Rate'].map(label => <th className="p-2" key={label}>{label}</th>)}</tr></thead>
-          <tbody>{summary.models.map(item => <tr className="border-t" key={item.model}>
-            <td className="p-2">{item.model}</td>
-            <td className="p-2">{item.response_count}</td>
-            <td className="p-2">{percent(item.average_overall_accuracy)}</td>
-            <td className="p-2">{percent(item.reliability)}</td>
-            <td className="p-2">{percent(item.hallucination_rate)}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-      <div>
-        <h3 className="font-medium">Error Summary</h3>
-        {summary.most_common_error_tags.length ? <ul className="mt-2 space-y-1 text-sm">
-          {summary.most_common_error_tags.map(item => <li key={item.error_tag}>{item.error_tag}: {item.count}</li>)}
-        </ul> : <p className="mt-2 text-sm">No error tags recorded.</p>}
-      </div>
+      <div className="benchmark-panel"><div className="panel-heading"><div><h2><ThemeIcon name="chart"/>Frontier Model Benchmark Standings</h2><p>Accepted component scores from the selected persisted research scope.</p></div><span className="version-chip">SORT: OVERALL ACCURACY DESC</span></div><ModelPerformance models={summary.models}/></div>
+      <div className="overview-bottom"><DimensionDistribution projectId={projectId} runId={runId} model={model} included={included}/>
+      <section className="benchmark-panel error-panel"><div className="panel-heading"><div><h2>Error Category Breakdown</h2><p>Error Summary / Multiple tags can occur on one response.</p></div></div>
+        <div className="error-categories">{summary.most_common_error_tags.length ? summary.most_common_error_tags.map(item=><div className="error-category" key={item.error_tag}><span><span className="error-dot"/>{item.error_tag}: {item.count}</span><strong>{percent(summary.total_evaluated_responses ? item.count/summary.total_evaluated_responses*100:0)}</strong><small>Recorded validation tag</small><small>{item.count} occurrences</small></div>):<p className="empty-state">No error tags recorded.</p>}</div>
+      </section></div>
     </>}
   </section>
 }

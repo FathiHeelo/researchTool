@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { researchApi } from '../../api/research'
+import { beforeEach } from 'vitest'
 import { ResearchDashboard } from './ResearchDashboard'
 import { evaluationApi, type DashboardSummary } from '../../api/client'
 
+beforeEach(()=>{vi.spyOn(researchApi,'analysis').mockResolvedValue({metadata_keys:[],dimension_summary:[]} as never)})
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 const summary: DashboardSummary = {
@@ -33,11 +36,13 @@ test('dashboard renders summary cards dynamic models and error summary', async (
   vi.spyOn(evaluationApi, 'dashboard').mockResolvedValue(summary)
   render(<ResearchDashboard projectId="1" />)
   expect(await screen.findByText('Responses Evaluated')).toBeTruthy()
-  expect(screen.getByText('3')).toBeTruthy()
+  expect(screen.getByText('3', {selector:'strong'})).toBeTruthy()
   const table = screen.getByRole('table', { name: 'Model performance' })
   expect(within(table).getByText('Research Model A')).toBeTruthy()
   expect(within(table).getByText('Arbitrary Model B')).toBeTruthy()
-  expect(screen.getByText('UNKNOWN_FUNCTION: 1')).toBeTruthy()
+  expect(screen.getByText('UNKNOWN_FUNCTION: 1', {exact:false})).toBeTruthy()
+  expect(within(table).getByText('custom')).toBeTruthy()
+  expect(screen.getByText('Benchmark Cases')).toBeTruthy()
 })
 
 test('dashboard run and model filters call API', async () => {

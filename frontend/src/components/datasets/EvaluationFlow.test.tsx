@@ -28,6 +28,7 @@ test('explorer dynamic models filters pagination and details', async () => {
   await screen.findByText('C1')
   fireEvent.click(screen.getByText('C1'))
   expect(screen.getByText(/Preserved requirement/)).toBeTruthy()
+  fireEvent.click(screen.getByText(/Close details \/ Back to Results Explorer/))
   fireEvent.click(screen.getByText('Next'))
   await waitFor(() => expect(results.mock.calls.at(-1)?.[2]).toContain('page=2'))
   fireEvent.change(screen.getByLabelText('search'), { target: { value: 'C1' } })
