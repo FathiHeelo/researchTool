@@ -23,7 +23,7 @@ export function RunEvaluation({ projectId, imported }: { projectId: string; impo
     return ()=>c.abort()
   },[projectId,mode,baselineReload])
   async function start() {
-    if (pending.current || (mode==='CHANGED_ONLY' && !baseline)) return
+    if (pending.current || error || run || (mode==='CHANGED_ONLY' && !baseline)) return
     pending.current = true; setBusy(true); setError(''); setRun(null)
     try { setRun(await evaluationApi.run(projectId, imported, mode==='FULL'?protocol:{...protocol,mode,baseline_run_id:Number(baseline)})) }
     catch { setError('Unable to complete the run request. Reload saved runs before retrying; the run may have been saved.') }
@@ -34,7 +34,7 @@ export function RunEvaluation({ projectId, imported }: { projectId: string; impo
     <ProtocolSelector projectId={projectId} disabled={busy || !!run} onChange={setProtocol}/>
     <fieldset disabled={busy||!!run}><legend>Run Mode</legend><label className="mr-3"><input type="radio" name="run-mode" checked={mode==='FULL'} onChange={()=>setMode('FULL')}/>Full Evaluation</label><label><input type="radio" name="run-mode" checked={mode==='CHANGED_ONLY'} onChange={()=>setMode('CHANGED_ONLY')}/>Re-evaluate Changed Cases Only</label></fieldset>
     {mode==='CHANGED_ONLY'&&<div><label>Baseline Run <select aria-label="Baseline Run" disabled={busy||baselineBusy||!!run} value={baseline} onChange={e=>setBaseline(e.target.value)}><option value="">Choose completed baseline</option>{baselines.map(r=><option key={r.id} value={r.id}>Run {r.id} — {r.status}</option>)}</select></label><button disabled={busy||baselineBusy||!!run} onClick={()=>setBaselineReload(n=>n+1)}>Reload baselines</button>{baselineBusy&&<p role="status">Loading baseline runs…</p>}{baselineError&&<p role="alert">{baselineError}</p>}{!baselineBusy&&!baselineError&&!baselines.length&&<p>No completed baseline runs available. Full Evaluation remains available.</p>}</div>}
-    <button onClick={() => void start()} disabled={busy || !!run || (mode==='CHANGED_ONLY'&&(!baseline||baselineBusy))} className="rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50">Run Evaluation</button>
+    <button onClick={() => void start()} disabled={busy || !!run || !!error || (mode==='CHANGED_ONLY'&&(!baseline||baselineBusy))} className="rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50">Run Evaluation</button>
     {busy && <p role="status">Running evaluation — awaiting processed count from server ({imported.responses.length} total).</p>}
     {error && <p role="alert">{error}</p>}
     {run && <div role="status"><p>Run {run.id}: {run.status} · {run.processed_responses}/{run.total_responses} processed</p>

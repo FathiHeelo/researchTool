@@ -35,8 +35,11 @@ test('explorer dynamic models filters pagination and details', async () => {
 })
 
 test('run errors are readable', async () => {
-  vi.spyOn(evaluationApi, 'run').mockRejectedValue(new Error('network'))
+  const start = vi.spyOn(evaluationApi, 'run').mockRejectedValue(new Error('network'))
   render(<RunEvaluation projectId="1" imported={{ cases: [{}], models: [{}], responses: [{}] }} />)
   fireEvent.click(screen.getByText('Run Evaluation'))
   expect((await screen.findByRole('alert')).textContent).toContain('Reload saved runs')
+  expect((screen.getByText('Run Evaluation') as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByText('Run Evaluation'))
+  expect(start).toHaveBeenCalledTimes(1)
 })

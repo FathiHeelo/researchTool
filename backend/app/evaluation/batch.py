@@ -9,6 +9,7 @@ from app.evaluation.incremental import versions, evaluation_inputs, fingerprint,
 from sqlalchemy import select
 from collections import defaultdict
 from copy import deepcopy
+import logging
 
 
 def run_batch(session, project_id, benchmark, protocol_snapshot=None, baseline=None):
@@ -25,12 +26,12 @@ def run_batch(session, project_id, benchmark, protocol_snapshot=None, baseline=N
         'protocol_snapshot': protocol_snapshot,'mode':benchmark.mode,'baseline_run_id':baseline.id if baseline else None})
     session.add(run); session.commit(); session.refresh(run)
     run.status = 'running'; run.started_at = utc_now(); session.commit()
-    cases = {item['id']: item for item in benchmark.cases}
-    reference_warnings = {key: validate_ground_truth(case.get('expected_rule')) for key, case in cases.items()}
-    models = {item['id']: item for item in benchmark.models}
     failed = execution_failures = hallucinations = reused = reevaluated = 0
     accuracies = []
     try:
+        cases = {item['id']: item for item in benchmark.cases}
+        reference_warnings = {key: validate_ground_truth(case.get('expected_rule')) for key, case in cases.items()}
+        models = {item['id']: item for item in benchmark.models}
         for response in benchmark.responses:
             case, model = cases[response['case_reference']], models[response['model']]
             inputs=evaluation_inputs(case,response,configuration,runtime)
@@ -79,7 +80,8 @@ def run_batch(session, project_id, benchmark, protocol_snapshot=None, baseline=N
                        'execution_failures': execution_failures, 'hallucinations': hallucinations,
                        'average_overall_accuracy': sum(accuracies) / len(accuracies) if accuracies else None}
     except Exception:
+        logging.getLogger(__name__).exception('Evaluation run %s failed', run.id)
         session.rollback()
-        run.status = 'failed'; run.failure_summary = 'Run stopped because results could not be persisted'
+        run.status = 'failed'; run.failure_summary = 'Run preparation or result persistence failed. Contact the administrator to check backend logs and installed dependencies.'
     run.completed_at = utc_now(); session.commit(); session.refresh(run)
     return run

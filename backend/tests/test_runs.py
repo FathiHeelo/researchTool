@@ -64,3 +64,21 @@ def test_failure_isolation(client, monkeypatch):
 def test_invalid_references(client):
     data = benchmark(); data['responses'].pop()
     assert client.post('/projects/1/runs', json=data).status_code == 422
+
+
+def test_missing_runtime_dependency_persists_failed_run(client, monkeypatch, caplog):
+    def unavailable(source):
+        raise ModuleNotFoundError("No module named 'great_expectations'")
+    monkeypatch.setattr(batch, 'validate_ground_truth', unavailable)
+    response = client.post('/projects/1/runs', json=benchmark())
+    assert response.status_code == 201
+    run = response.json()
+    assert run['status'] == 'failed'
+    assert run['processed_responses'] == 0
+    assert run['completed_at'] is not None
+    assert 'installed dependencies' in run['failure_summary']
+    assert 'Traceback' not in response.text
+    saved = client.get(f"/projects/1/runs/{run['id']}").json()
+    assert saved['status'] == 'failed'
+    assert len(client.get('/projects/1/runs').json()) == 1
+    assert 'great_expectations' in caplog.text
