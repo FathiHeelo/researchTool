@@ -18,11 +18,11 @@ export function ResultsExplorer({ projectId, selectedRunId, onRunChange }: { pro
   useEffect(() => {
     const controller = new AbortController()
     setError('')
-    evaluationApi.list(projectId, controller.signal).then(setRuns).catch(() => { if (!controller.signal.aborted) setError('Unable to load saved runs.') })
+    evaluationApi.list(projectId, controller.signal).then(items => { if (!controller.signal.aborted) setRuns(items) }).catch(() => { if (!controller.signal.aborted) setError('Unable to load saved runs.') })
     return () => controller.abort()
   }, [projectId, reload])
   useEffect(() => {
-    setData(null); setDetail(null)
+    setData(null); setDetail(null); setLoading(false)
     if (!run) return
     const controller = new AbortController()
     setLoading(true); setError('')

@@ -44,3 +44,17 @@ test('run errors are readable', async () => {
   fireEvent.click(screen.getByText('Run Evaluation'))
   expect(start).toHaveBeenCalledTimes(1)
 })
+
+test('clearing a run cancels loading and ignores late results', async () => {
+  vi.spyOn(evaluationApi, 'list').mockResolvedValue([run])
+  let resolve!: (data: {items: never[]; total: number; models: string[]}) => void
+  vi.spyOn(evaluationApi, 'results').mockImplementation(() => new Promise(done => { resolve = done }))
+  render(<ResultsExplorer projectId="1" />)
+  await screen.findByText(/Run 1 .*completed/)
+  fireEvent.change(screen.getByLabelText('Evaluation run'), {target: {value: '1'}})
+  await screen.findByText(/Loading results/)
+  fireEvent.change(screen.getByLabelText('Evaluation run'), {target: {value: ''}})
+  expect(screen.queryByText(/Loading results/)).toBeNull()
+  resolve({items: [], total: 0, models: []})
+  await waitFor(() => expect(screen.queryByRole('table', {name: 'Evaluation results'})).toBeNull())
+})
