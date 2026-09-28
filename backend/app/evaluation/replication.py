@@ -116,7 +116,9 @@ def replication_package(session, project, run, include_ground_truth_warnings=Tru
     put('data/detailed_results.csv',export_run(session,project,run,'csv',include_ground_truth_warnings,sanitizer=sanitize))
     put_json('configuration/metric_configuration.json',summary.get('metric_configuration'))
     put_json('configuration/evaluation_protocol.json',protocol)
-    put_json('configuration/run_configuration.json',{k:summary.get(k) for k in ('mode','baseline_run_id','reused_count','reevaluated_count','failed_count','reuse_percentage')})
+    put_json('configuration/run_configuration.json',{**{k:summary.get(k) for k in ('mode','baseline_run_id','reused_count','reevaluated_count','failed_count','reuse_percentage')},
+        'strategy_metadata_key': strategy, 'quality_dimension_metadata_key': dimension,
+        'experiment_variant_metadata_key': config.get('variant_metadata_key')})
     put_json('configuration/evaluator_version.json',{k:summary.get(k) for k in ('evaluator_version','equivalence_version','gx_version')})
     if include_analysis:
         analysis=analytics(session,project.id,run.id,include_ground_truth_warnings=include_ground_truth_warnings,strategy_key=strategy,dimension_key=dimension)

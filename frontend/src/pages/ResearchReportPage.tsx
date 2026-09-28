@@ -34,6 +34,13 @@ export function ResearchReportPage() {
 export function ReportContent({data,enabled}: {data: ReportData; enabled: string[]}) {
   const {project,run,dashboard:d,analysis:a,analyst,details} = data
   const metrics=run.summary.metric_configuration ?? run.summary.protocol_snapshot?.configuration.metrics ?? []
+  const roleKeys=run.summary.protocol_snapshot?.configuration.analysis_metadata_keys ?? {}
+  const strategyKey=roleKeys.strategy
+  const dimensionKey=roleKeys.dimension
+  const strategyAvailable=!!strategyKey&&a.metadata_keys.includes(strategyKey)
+  const dimensionAvailable=!!dimensionKey&&a.metadata_keys.includes(dimensionKey)
+  const limitations=[!strategyAvailable?(strategyKey?`Prompt Strategy analysis is omitted because "${strategyKey}" has no observations in this run.`:'Prompt Strategy analysis is omitted because no strategy metadata key was configured for this run.'):null,
+    !dimensionAvailable?(dimensionKey?`Data Quality Dimension analysis is omitted because "${dimensionKey}" has no observations in this run.`:'Data Quality Dimension analysis is omitted because no quality-dimension metadata key was configured for this run.'):null].filter(Boolean)
   const warnings=details.flatMap(r=>r.ground_truth_warnings.map(w=>({case_id:r.case_id,model:r.model,warning_type:w.warning_type,severity:w.severity,expected_rule:(r.snapshot as {case?:{expected_rule?:unknown}})?.case?.expected_rule,message:w.message})))
   const stats=run.summary.statistical_comparisons
   const statisticalRows=Array.isArray(stats)?stats.filter((r):r is Record<string,unknown>=>!!r&&typeof r==='object'&&!Array.isArray(r)):[]
@@ -43,7 +50,10 @@ export function ReportContent({data,enabled}: {data: ReportData; enabled: string
     {enabled.includes('Model Performance')&&<section className="report-section"><h2>Model Performance Summary</h2><ModelPerformance models={d.models}/></section>}
     <EvidenceTable title="Metric Definitions — Run Snapshot" rows={metrics.map(m=>({metric:m.name||m.key,key:m.key,enabled:m.enabled,weight:m.weight,score_scale:`${m.min_score}–${m.max_score}`,description:m.description}))}/>
     <section className="report-section"><h3>Definitions</h3><p>Overall Accuracy: the existing accepted weighted overall score, using the run’s metric configuration; automated scores apply where no researcher override exists. Unavailable scores remain unavailable.</p><p>Reliability: execution success count / total responses × 100.</p><p>Hallucination Rate: responses with hallucination / total responses × 100.</p></section>
-    <EvidenceTable title="Prompt Strategy Analysis" rows={a.strategies}/><EvidenceTable title="Matched Case Delta" rows={a.strategy_deltas}/><EvidenceTable title="Data Quality Dimension Analysis" rows={a.dimensions}/><EvidenceTable title="Agreement Analysis" rows={a.agreement}/>
+    {limitations.length>0&&<section className="report-section"><h2>Research Metadata Limitations</h2><ul>{limitations.map(item=><li key={String(item)}>{item}</li>)}</ul></section>}
+    {strategyAvailable&&<><EvidenceTable title={`Prompt Strategy Analysis (${strategyKey})`} rows={a.strategies}/><EvidenceTable title="Matched Case Accuracy Delta" rows={a.strategy_deltas}/><EvidenceTable title="Agreement by Strategy" rows={a.agreement}/></>}
+    {dimensionAvailable&&<EvidenceTable title={`Data Quality Dimension Performance (${dimensionKey})`} rows={a.dimensions}/>} 
+    {!strategyAvailable&&<EvidenceTable title="Agreement Analysis" rows={a.agreement}/>} 
     {enabled.includes('Statistical Analysis')&&<><EvidenceTable title="Statistical Comparisons" rows={statisticalRows}/><p>Statistical results supplement descriptive analysis and depend on matched sample size and experimental design.</p>{!statisticalRows.length&&<p className="muted">No statistical comparison snapshot is available for this run. Interactive, unsaved comparisons are not recreated by this report.</p>}</>}
     {enabled.includes('Error Analysis')&&<><EvidenceTable title="Error Analysis" rows={Object.entries(d.error_tag_counts).map(([error_type,count])=>({error_type,count,occurrence_percent:d.total_evaluated_responses?count/d.total_evaluated_responses*100:0}))}/><p className="muted">Multiple tags may occur on a response; occurrence rates need not sum to 100%.</p></>}
     <section className="report-section"><h2>Hallucination Analysis</h2><p>Overall rate: {percent(d.hallucination_rate)}</p><EvidenceTable title="Hallucination Rate by Model" rows={d.models.map(m=>({model:m.model,hallucination_rate:percent(m.hallucination_rate)}))}/><EvidenceTable title="Hallucinated Functions" rows={Object.entries(a.hallucinated_functions).sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}))}/></section>

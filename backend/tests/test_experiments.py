@@ -64,6 +64,7 @@ def test_missing_and_ambiguous_variants(client):
 def test_protocol_crud_duplicate_version_snapshot(client):
     config=client.get(PROTOCOL+'/defaults').json()['configuration']
     assert [m['weight'] for m in config['metrics']]==[25]*4
+    config['analysis_metadata_keys']={'strategy':'Prompt Strategy','dimension':'Researcher DQ Axis'}
     config['variant_metadata_key']='تجربة Ω';config['statistics']={'enabled':True,'alpha':.02,'correction':'holm'}
     created=client.post(PROTOCOL,json={'name':'Protocol Ω','description':'reproducible','configuration':config})
     assert created.status_code==201
@@ -76,6 +77,8 @@ def test_protocol_crud_duplicate_version_snapshot(client):
     assert update.status_code==200 and update.json()['version']==2
     assert client.get(f'{BASE}/{run["id"]}').json()['summary']==snapshot
     assert snapshot['protocol_snapshot']['configuration']['statistics']['alpha']==.02
+    assert snapshot['protocol_snapshot']['configuration']['analysis_metadata_keys']=={'strategy':'Prompt Strategy','dimension':'Researcher DQ Axis'}
+    assert snapshot['protocol_snapshot']['configuration']['variant_metadata_key']==config['variant_metadata_key']
     assert client.post(BASE,json={**benchmark(),'protocol_id':pid,'protocol_version':1}).status_code==409
     assert client.post(f'{PROTOCOL}/{pid}',json={'name':'stale','configuration':config,'expected_version':1}).status_code==409
     duplicate=client.post(f'{PROTOCOL}/{pid}/duplicate').json()

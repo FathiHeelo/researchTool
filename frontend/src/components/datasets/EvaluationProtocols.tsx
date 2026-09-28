@@ -33,7 +33,7 @@ export function EvaluationProtocols({projectId, analysisKeys, variantKey, includ
     setStatus('Current project metrics and dashboard settings loaded into the draft.')
   }
   return <section className="space-y-3"><h3 className="font-medium">Evaluation Protocols</h3>
-    <p className="text-sm">Protocols store configuration only. Saving creates a new version; historical runs keep independent snapshots. Choose a protocol before Run Evaluation.</p>
+    <p className="text-sm">Protocols store configuration and dynamic metadata-key roles. Saving creates a new version; historical runs keep independent snapshots. Choose a protocol before Run Evaluation.</p>
     <select aria-label="Saved protocol" disabled={busy} value={selected?.id || ''} onChange={e => {const p=items.find(p => String(p.id)===e.target.value); if(p) load(p); else {setSelected(null); setName(''); setDescription(''); setConfig(null)}}}><option value="">New protocol</option>{items.map(p => <option key={p.id} value={p.id}>{p.name} — v{p.version}</option>)}</select>
     <button disabled={busy} onClick={() => setReload(n=>n+1)}>Reload saved protocols</button>
     <div className="flex flex-wrap gap-3"><button disabled={busy} onClick={() => void action(current)}>Use current configuration</button>

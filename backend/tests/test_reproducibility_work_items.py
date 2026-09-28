@@ -106,6 +106,9 @@ def test_package_manifest_and_no_evaluation(client, monkeypatch):
         assert 'replication_package/exports/research_results.xlsx' in archive.namelist()
         assert b'Future Model' in archive.read('replication_package/README.md')
         assert b'Evaluation Provenance' in archive.read('replication_package/data/detailed_results.csv')
+        run_config=json.loads(archive.read('replication_package/configuration/run_configuration.json'))
+        assert {'strategy_metadata_key','quality_dimension_metadata_key','experiment_variant_metadata_key'} <= set(run_config)
+        assert b'Metadata' in archive.read('replication_package/data/benchmark.csv')
 
 
 def test_package_optional_and_redaction(client):

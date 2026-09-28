@@ -53,7 +53,7 @@ test('incremental baseline and reuse summary',async()=>{
   const run={id:1,status:'completed',processed_responses:4,total_responses:4,summary:{reused_count:3,reevaluated_count:1,failed_count:0}}
   vi.spyOn(evaluationApi,'list').mockResolvedValue([run])
   const start=vi.spyOn(evaluationApi,'run').mockResolvedValue({...run,id:2})
-  render(<RunEvaluation projectId="1" imported={{cases:[{}],models:[{}],responses:[{}]}}/> )
+  render(<RunEvaluation projectId="1" imported={{cases:[{id:'c',case_id:'C',requirement:'R',expected_rule:'E',metadata:[]}],models:[{id:'m'}],responses:[{case_reference:'c',model:'m',generated_output:'G'}]}}/> )
   fireEvent.click(screen.getByLabelText('Re-evaluate Changed Cases Only'))
   await screen.findByText(/Run 1.*completed/)
   expect((screen.getByText('Run Evaluation') as HTMLButtonElement).disabled).toBe(true)

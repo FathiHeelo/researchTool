@@ -13,6 +13,7 @@ export interface ResearchAnalysis {
   agreement: ResearchRecord[]; agreement_summary?: ResearchRecord[]; errors: ResearchRecord[]; hallucinated_functions: Record<string, number>;
   ground_truth_warning_results: number; filtered_results: number; filtered_cases: number;
   include_ground_truth_warnings: boolean
+  metadata_readiness?: {strategy_key: string | null; strategy_available: boolean; dimension_key: string | null; dimension_available: boolean; matched_strategy_cases: number; total_strategy_cases: number}
 }
 export const researchApi = {
   analyst: (project: string, query: string, signal?: AbortSignal) => apiRequest<AnalystSummary>(`/projects/${project}/runs/dashboard/analyst-summary?${query}`, {signal}),

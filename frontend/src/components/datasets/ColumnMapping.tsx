@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { importDataset, type ColumnAssignment, type DatasetMetadata, type NormalizedImport } from '../../api/client'
 import { useParams } from 'react-router-dom'
 import { RunEvaluation } from './RunEvaluation'
+import { ResearchMetadataFields, type ConstantMetadataDraft } from './ResearchMetadataFields'
+import { CaseMetadataEditor } from './CaseMetadataEditor'
 
 export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetMetadata }) {
   const columns = dataset.columns || []
@@ -12,6 +14,8 @@ export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetM
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<NormalizedImport | null>(null)
   const [importRevision, setImportRevision] = useState(0)
+  const [promptStrategy, setPromptStrategy] = useState('')
+  const [constantMetadata, setConstantMetadata] = useState<ConstantMetadataDraft[]>([])
   const pending = useRef<AbortController | null>(null)
   useEffect(() => () => pending.current?.abort(), [])
   const problems = []
@@ -19,6 +23,9 @@ export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetM
   if (assignments.filter(item => item.role === 'expected_rule').length !== 1) problems.push('Map exactly one Expected Rule column.')
   if (assignments.filter(item => item.role === 'case_id').length > 1) problems.push('Map at most one Case ID column.')
   if (!assignments.some(item => item.role === 'model')) problems.push('Select at least one Model Output column.')
+  const metadata = [...(promptStrategy.trim() ? [{key: 'Prompt Strategy', value: promptStrategy.trim()}] : []),
+    ...constantMetadata.filter(item => item.key.trim()).map(item => ({key:item.key.trim(),value:item.value}))]
+  if (new Set(metadata.map(item => item.key)).size !== metadata.length) problems.push('Research metadata keys must be unique.')
   function change(index: number, patch: Partial<ColumnAssignment>) {
     setAssignments(items => items.map(item => item.index === index ? { ...item, ...patch } : item))
     setResult(null); setError('')
@@ -28,7 +35,7 @@ export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetM
     const controller = new AbortController()
     pending.current = controller; setBusy(true); setError('')
     try {
-      const normalized = await importDataset(file, assignments, controller.signal, dataset.selected_sheet)
+      const normalized = await importDataset(file, assignments, controller.signal, dataset.selected_sheet, metadata)
       if (!controller.signal.aborted) { setResult(normalized); setImportRevision(value => value + 1) }
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to import dataset.')
@@ -38,6 +45,7 @@ export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetM
   return <section className="space-y-3 border-t border-slate-200 pt-4">
     <h3 className="font-medium">Configure Columns</h3>
     <p className="text-sm text-slate-600">Map core fields and model outputs. Other columns remain research metadata unless ignored. Metadata labels are editable.</p>
+    <ResearchMetadataFields promptStrategy={promptStrategy} onPromptStrategy={value=>{setPromptStrategy(value);setResult(null)}} items={constantMetadata} onItems={items=>{setConstantMetadata(items);setResult(null)}} disabled={busy}/>
     {assignments.map(item => <div key={item.index} className="flex flex-wrap items-center gap-3 text-sm">
       <span className="whitespace-pre-wrap">{item.index + 1}. {columns[item.index] === null || columns[item.index] === '' ? '(blank header)' : String(columns[item.index])}</span>
       <select aria-label={`Role for column ${item.index + 1}`} value={item.role} disabled={busy} onChange={event => change(item.index, { role: event.target.value })} className="rounded border p-2">
@@ -51,6 +59,7 @@ export function ColumnMapping({ file, dataset }: { file: File; dataset: DatasetM
     <button type="button" disabled={busy || problems.length > 0} onClick={() => void submit()} className="rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50">{busy ? 'Importing…' : 'Validate Mapping and Import'}</button>
     {error && <p role="alert">{error}</p>}
     {result && <p role="status">Imported {result.cases.length} cases, {result.models.length} models, and {result.responses.length} responses for this page. Not saved to the database.</p>}
+    {result && <CaseMetadataEditor value={result} onChange={setResult}/>} 
     {result && projectId && <RunEvaluation key={importRevision} projectId={projectId} imported={result} />}
   </section>
 }

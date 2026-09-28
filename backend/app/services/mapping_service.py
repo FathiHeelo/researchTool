@@ -21,6 +21,9 @@ def normalize_dataset(stream, extension, sheet_name, columns, configuration):
               for i, item in assignments.items() if item.role == 'model']
     if not models:
         raise InvalidUpload('At least one model output column is required', 'invalid_mapping')
+    constant_metadata = [(item.key, item.value) for item in configuration.constant_metadata]
+    if len({key for key, _ in constant_metadata}) != len(constant_metadata):
+        raise InvalidUpload('Dataset metadata keys must be unique', 'invalid_mapping')
     stream.seek(0)
     workbook = None
     text = None
@@ -51,6 +54,10 @@ def normalize_dataset(stream, extension, sheet_name, columns, configuration):
             metadata = [{'source_column_index': i, 'source_column_name': columns[i],
                          'label': (assignments[i].label or columns[i]) if i in assignments else columns[i], 'value': value}
                         for i, value in enumerate(values) if i not in assignments or assignments[i].role == 'metadata']
+            constant_keys = {key for key, _ in constant_metadata}
+            metadata = [item for item in metadata if item.get('label') not in constant_keys]
+            metadata.extend({'key': key, 'label': key, 'value': value, 'source': 'dataset_constant'}
+                            for key, value in constant_metadata)
             cases.append({'id': case_key, 'case_id': primary.get('case_id') if primary.get('case_id') not in (None, '') else case_key,
                           'requirement': primary['requirement'], 'expected_rule': primary['expected_rule'],
                           'original_row_number': row_number, 'metadata': metadata})
@@ -58,7 +65,9 @@ def normalize_dataset(stream, extension, sheet_name, columns, configuration):
                 responses.append({'case_reference': case_key, 'model': model['id'],
                                   'generated_output': values[model['source_column_index']],
                                   'original_row_number': row_number,
-                                  'source_column_index': model['source_column_index'], 'source_column_name': model['source_column_name']})
+                                  'source_column_index': model['source_column_index'], 'source_column_name': model['source_column_name'],
+                                  'metadata': [{'key': key, 'label': key, 'value': value, 'source': 'dataset_constant'}
+                                               for key, value in constant_metadata]})
         return {'mapping': configuration.model_dump(), 'models': models, 'cases': cases, 'responses': responses}
     finally:
         if text: text.detach()

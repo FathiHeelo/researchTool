@@ -5,8 +5,9 @@ from app.main import app
 
 client = TestClient(app)
 
-def send(assignments, content=b'id,req,expected,Future model,extra\nR1,Do it,Rule,Output,context\n'):
-    return client.post('/datasets/import', files={'file': ('data.csv', content)}, data={'mapping': json.dumps({'assignments': assignments})})
+def send(assignments, content=b'id,req,expected,Future model,extra\nR1,Do it,Rule,Output,context\n', constant_metadata=None):
+    payload = {'assignments': assignments, 'constant_metadata': constant_metadata or []}
+    return client.post('/datasets/import', files={'file': ('data.csv', content)}, data={'mapping': json.dumps(payload)})
 
 def mapping():
     return [{'index': 1, 'role': 'requirement'}, {'index': 2, 'role': 'expected_rule'}, {'index': 3, 'role': 'model'}]
@@ -41,6 +42,27 @@ def test_metadata_label_and_custom_model():
     data = send(assignments + [{'index': 4, 'role': 'metadata', 'label': 'Custom dimension'}]).json()
     assert data['models'][0]['label'] == 'Researcher model'
     assert data['cases'][0]['metadata'][1]['label'] == 'Custom dimension'
+
+def test_constant_arbitrary_metadata_applies_to_every_case_and_response():
+    content = b'id,req,expected,Future model\nC1,First,Rule,Output 1\nC2,Second,Rule,Output 2\n'
+    metadata = [{'key': 'Prompt Strategy', 'value': 'Researcher strategy X'},
+                {'key': 'Arbitrary study field', 'value': 'Cohort 7'}]
+    response = send(mapping() + [{'index': 0, 'role': 'case_id'}], content, metadata)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    expected = [('Prompt Strategy', 'Researcher strategy X'), ('Arbitrary study field', 'Cohort 7')]
+    for item in data['cases'] + data['responses']:
+        assert [(entry['label'], entry['value']) for entry in item['metadata'][-2:]] == expected
+    assert [case['case_id'] for case in data['cases']] == ['C1', 'C2']
+    assert [case['id'] for case in data['cases']] == ['row_2', 'row_3']
+
+def test_constant_metadata_overrides_same_mapped_key_and_rejects_duplicates():
+    assignments = mapping() + [{'index': 4, 'role': 'metadata', 'label': 'Prompt Strategy'}]
+    data = send(assignments, constant_metadata=[{'key': 'Prompt Strategy', 'value': 'Dataset strategy'}]).json()
+    values = [entry for entry in data['cases'][0]['metadata'] if entry['label'] == 'Prompt Strategy']
+    assert len(values) == 1 and values[0]['value'] == 'Dataset strategy'
+    duplicate = send(mapping(), constant_metadata=[{'key': 'Any', 'value': 'a'}, {'key': 'Any', 'value': 'b'}])
+    assert duplicate.status_code == 400
 
 def test_csv_original_physical_rows():
     data = send(mapping(), b'\n\nid,req,expected,model,extra\nR1,"multi\nline",rule,out,meta\nR2,next,rule,out,meta\n').json()

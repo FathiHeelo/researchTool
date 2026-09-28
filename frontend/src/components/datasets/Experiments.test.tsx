@@ -33,7 +33,7 @@ test('variant errors allow retry',async()=>{
 test('protocol selector sends ID and version before evaluation',async()=>{
   vi.spyOn(protocolApi,'list').mockResolvedValue([protocol])
   const run=vi.spyOn(evaluationApi,'run').mockResolvedValue({id:1,status:'completed',processed_responses:1,total_responses:1,summary:{}})
-  render(<RunEvaluation projectId="1" imported={{cases:[{}],models:[{}],responses:[{}]}}/>)
+  render(<RunEvaluation projectId="1" imported={{cases:[{id:'c',case_id:'C',requirement:'R',expected_rule:'E',metadata:[]}],models:[{id:'m'}],responses:[{case_reference:'c',model:'m',generated_output:'G'}]}}/>)
   await screen.findByText('Protocol Ω — v2')
   fireEvent.change(screen.getByLabelText('Evaluation Protocol'),{target:{value:'3'}})
   fireEvent.click(screen.getByText('Run Evaluation'))
@@ -54,7 +54,7 @@ test('protocol settings save current configuration and version edits',async()=>{
   fireEvent.change(screen.getByLabelText('Protocol name'),{target:{value:'Renamed'}})
   fireEvent.click(screen.getByText('Save new version / rename'))
   await screen.findByText('Saved version 3.')
-  expect(save).toHaveBeenCalledWith('1',expect.objectContaining({name:'Renamed',expected_version:2,configuration:expect.objectContaining({variant_metadata_key:'Revision',include_ground_truth_warnings:false})}),3)
+  expect(save).toHaveBeenCalledWith('1',expect.objectContaining({name:'Renamed',expected_version:2,configuration:expect.objectContaining({analysis_metadata_keys:{strategy:'Arbitrary'},variant_metadata_key:'Revision',include_ground_truth_warnings:false})}),3)
 })
 
 test('protocol duplicate and reset defaults',async()=>{

@@ -12,7 +12,7 @@ const run = { id: 1, status: 'completed', processed_responses: 1, total_response
 
 test('run action and summary', async () => {
   const start = vi.spyOn(evaluationApi, 'run').mockResolvedValue(run)
-  render(<RunEvaluation projectId="1" imported={{ cases: [{}], models: [{}], responses: [{}] }} />)
+  render(<RunEvaluation projectId="1" imported={{ cases: [{id:'c',case_id:'C',requirement:'R',expected_rule:'E',metadata:[]}], models: [{id:'m'}], responses: [{case_reference:'c',model:'m',generated_output:'G'}] }} />)
   fireEvent.click(screen.getByText('Run Evaluation'))
   await screen.findByText(/Run 1: completed/)
   expect(start).toHaveBeenCalledTimes(1)
@@ -37,7 +37,7 @@ test('explorer dynamic models filters pagination and details', async () => {
 
 test('run errors are readable', async () => {
   const start = vi.spyOn(evaluationApi, 'run').mockRejectedValue(new Error('network'))
-  render(<RunEvaluation projectId="1" imported={{ cases: [{}], models: [{}], responses: [{}] }} />)
+  render(<RunEvaluation projectId="1" imported={{ cases: [{id:'c',case_id:'C',requirement:'R',expected_rule:'E',metadata:[]}], models: [{id:'m'}], responses: [{case_reference:'c',model:'m',generated_output:'G'}] }} />)
   fireEvent.click(screen.getByText('Run Evaluation'))
   expect((await screen.findByRole('alert')).textContent).toContain('Reload saved runs')
   expect((screen.getByText('Run Evaluation') as HTMLButtonElement).disabled).toBe(true)

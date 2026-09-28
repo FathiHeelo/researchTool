@@ -42,7 +42,10 @@ export async function checkHealth(signal: AbortSignal): Promise<void> {
 
 export type DatasetValue = string | number | boolean | null
 export interface ColumnAssignment { index: number; role: string; label?: string }
-export interface NormalizedImport { cases: unknown[]; models: unknown[]; responses: unknown[] }
+export interface MetadataEntry { key?: string; label?: string; value: unknown; source?: string; source_column_index?: number; source_column_name?: unknown }
+export interface NormalizedCase { id: string; case_id: unknown; requirement: unknown; expected_rule: unknown; original_row_number?: number; metadata: MetadataEntry[] }
+export interface NormalizedResponse { case_reference: string; model: string; generated_output: unknown; metadata?: MetadataEntry[]; [key: string]: unknown }
+export interface NormalizedImport { cases: NormalizedCase[]; models: unknown[]; responses: NormalizedResponse[]; mapping?: unknown }
 export interface EvaluationRun { id: number; status: string; processed_responses: number; total_responses: number; failure_summary?: string; summary: Record<string, number | null> }
 export interface EvaluationRow { id: number; case_id: string; model: string; overall_accuracy: number | null; scores: Record<string, number | null>; hallucination_detected: boolean; hallucinated_functions: string[]; error_tags: string[]; notes: string[]; snapshot: unknown }
 export interface ResultsPage { items: EvaluationRow[]; total: number; models: string[] }
@@ -80,10 +83,10 @@ export const evaluationApi = {
   results: (project: string, run: number, query: string, signal: AbortSignal) => request<ResultsPage>(`/projects/${project}/runs/${run}/results?${query}`, { signal }),
   dashboard: (project: string, query: string, signal: AbortSignal) => request<DashboardSummary>(`/projects/${project}/runs/dashboard/summary${query ? `?${query}` : ''}`, { signal }),
 }
-export async function importDataset(file: File, assignments: ColumnAssignment[], signal: AbortSignal, sheetName?: string): Promise<NormalizedImport> {
+export async function importDataset(file: File, assignments: ColumnAssignment[], signal: AbortSignal, sheetName?: string, constantMetadata: {key: string; value: string}[] = []): Promise<NormalizedImport> {
   const body = new FormData()
   body.append('file', file)
-  body.append('mapping', JSON.stringify({ assignments }))
+  body.append('mapping', JSON.stringify({ assignments, constant_metadata: constantMetadata }))
   if (sheetName !== undefined) body.append('sheet_name', sheetName)
   const response = await fetch(`${baseUrl}/datasets/import`, { method: 'POST', body, signal })
   const data = await response.json()

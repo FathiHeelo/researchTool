@@ -58,6 +58,14 @@ def safe_csv(value):
 def export_run(session, project, run, format, include_ground_truth_warnings=True, strategy_key=None, dimension_key=None, sanitizer=None):
     rows, _ = records(session, project.id, run.id, include_ground_truth_warnings=include_ground_truth_warnings)
     details = detailed(rows)
+    configuration = ((run.summary or {}).get('protocol_snapshot') or {}).get('configuration') or {}
+    roles = configuration.get('analysis_metadata_keys', {})
+    strategy_key = strategy_key or roles.get('strategy')
+    dimension_key = dimension_key or roles.get('dimension')
+    for item in details:
+        item['Strategy Metadata Key'] = strategy_key
+        item['Quality Dimension Metadata Key'] = dimension_key
+        item['Experiment Variant Metadata Key'] = configuration.get('variant_metadata_key')
     if sanitizer: details = sanitizer(details)
     if format == 'csv':
         stream = io.StringIO(newline='')
@@ -92,6 +100,8 @@ def export_run(session, project, run, format, include_ground_truth_warnings=True
           'Evaluator Version': run.summary.get('evaluator_version', 'legacy'),
           **{k:v for k,v in analysis.items() if not isinstance(v, (list, dict))},
           'Metric Configuration': run.summary.get('metric_configuration', 'Legacy equal weights over stored keys'),
+          'Strategy Metadata Key': strategy_key, 'Quality Dimension Metadata Key': dimension_key,
+          'Experiment Variant Metadata Key': configuration.get('variant_metadata_key'),
           'Definitions': 'Accuracy: run-weighted normalized accepted scores. Reliability: accepted execution=1 / eligible responses. Hallucination: invented function responses / responses.'}])
     sheet('Detailed Results', details)
     sheet('Model Summary', analysis['models'])

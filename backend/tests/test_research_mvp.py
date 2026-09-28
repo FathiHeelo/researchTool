@@ -74,13 +74,40 @@ def test_research_analytics_and_scopes(client):
     assert data['hallucinated_functions'] == {'expect_invented': 2}
     delta = next(d for d in data['strategy_deltas'] if d['model'] == 'Future Model')
     assert delta['matched_case_count'] == 1
-    assert delta['delta'] == 25
+    assert delta['accuracy_a'] == 75 and delta['accuracy_b'] == 100
+    assert delta['delta_percentage_points'] == delta['delta'] == 25
+    assert delta['unmatched_case_count'] == 0
     assert len(data['dimensions']) == len(data['groups']) == 2
     assert len(data['dimension_summary']) == 1
+    assert {item['value'] for item in data['dimensions']} == {'Novel'}
+    assert all('semantic' in item['average_component_scores'] for item in data['dimensions'])
     assert data['agreement'][0]['comparable_count'] == 1
+    assert {item['strategy'] for item in data['agreement_summary']} == {'Alpha', 'Beta'}
+    assert data['metadata_readiness']['matched_strategy_cases'] == 1
     errors = {e['tag']: e for e in data['errors']}
     assert errors['A']['count'] == 1 and errors['A']['percentage'] == 25
     assert client.get(BASE + '/dashboard/research?run_id=1&model=Another').json()['response_count'] == 2
+
+
+def test_strategy_matching_excludes_and_reports_unmatched_case_ids(client):
+    first = benchmark()
+    first['cases'] = [first['cases'][0]]
+    first['responses'] = [response for response in first['responses'] if response['case_reference'] == 'row_0']
+    first['cases'][0]['case_id'] = 'shared-case'
+    first['cases'][0]['metadata'] = [{'label': 'Prompt Strategy', 'value': 'A'}]
+    second = benchmark()
+    second['cases'][0]['case_id'] = 'shared-case'
+    second['cases'][1]['case_id'] = 'only-B'
+    for case in second['cases']:
+        case['metadata'] = [{'label': 'Prompt Strategy', 'value': 'B'}]
+    assert client.post(BASE, json=first).status_code == 201
+    assert client.post(BASE, json=second).status_code == 201
+    data = client.get(BASE + '/dashboard/research?strategy_key=Prompt%20Strategy').json()
+    delta = next(item for item in data['strategy_deltas'] if item['model'] == 'Future Model')
+    assert delta['matched_case_count'] == 1
+    assert delta['unmatched_case_count'] == 1
+    assert data['metadata_readiness']['matched_strategy_cases'] == 1
+    assert data['metadata_readiness']['total_strategy_cases'] == 2
 
 
 def test_unparseable_agreement_and_missing_metadata(client):
@@ -111,13 +138,16 @@ def test_import_to_export_integration(client):
     writer.writerow(['C1', 'بحث', 'expect_column_to_exist("a")', 'expect_column_to_exist("a")', 'Custom'])
     writer.writerow(['C2', '=not_a_formula', 'expect_invented()', 'expect_column_to_exist("a")', 'Custom'])
     roles = ['case_id', 'requirement', 'expected_rule', 'model', 'metadata']
-    mapping = {'assignments': [{'index': i, 'role': role} for i, role in enumerate(roles)]}
+    mapping = {'assignments': [{'index': i, 'role': role} for i, role in enumerate(roles)],
+               'constant_metadata': [{'key': 'Prompt Strategy', 'value': 'Imported strategy'}]}
     imported = client.post('/datasets/import', files={'file': ('research.csv', stream.getvalue().encode())}, data={'mapping': json.dumps(mapping)})
     assert imported.status_code == 200
     run = client.post(BASE, json=imported.json())
     assert run.status_code == 201
     rows = client.get(BASE + '/1/results').json()['items']
     assert rows[1]['ground_truth_warning']
+    assert {'key': 'Prompt Strategy', 'label': 'Prompt Strategy', 'value': 'Imported strategy', 'source': 'dataset_constant'} in rows[0]['snapshot']['case']['metadata']
+    assert rows[0]['snapshot']['response']['metadata'][0]['value'] == 'Imported strategy'
     reviewed = client.post(BASE + '/1/results/1/review', json={'override_scores': {'semantic': .5}, 'reason': 'Research reason', 'actor': 'Researcher Ω'}).json()
     assert reviewed['automated_scores']['semantic'] == 1
     assert reviewed['accepted_overall_accuracy'] == 87.5
@@ -128,6 +158,8 @@ def test_import_to_export_integration(client):
     assert 'Manual Overrides' in book.sheetnames and 'Metric Configuration' in book.sheetnames
     assert 'DQ Dimension Analysis' not in book.sheetnames
     ws = book['Detailed Results']; headers = [c.value for c in ws[1]]
+    assert 'Metadata: Prompt Strategy' in headers and 'Strategy Metadata Key' in headers
+    assert ws.cell(2, headers.index('Strategy Metadata Key')+1).value == 'Experiment'
     assert ws.cell(2, headers.index('Source Row')+1).value == 2
     assert ws.cell(2, headers.index('Accepted Overall Accuracy')+1).value == 87.5
     assert ws.cell(3, headers.index('Requirement')+1).data_type == 's'

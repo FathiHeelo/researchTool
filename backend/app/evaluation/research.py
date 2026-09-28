@@ -75,12 +75,16 @@ def analytics(session, project_id, run_id=None, model=None, include_ground_truth
         for a, b in combinations(sorted(groups), 2):
             matched = sorted(set(groups[a]) & set(groups[b]))
             shared = len(matched)
+            unmatched = len(set(groups[a]) ^ set(groups[b]))
             matched = [c for c in matched if len({signature for _,signature in groups[a][c]+groups[b][c]}) == 1
                        and average([v for v,_ in groups[a][c]]) is not None and average([v for v,_ in groups[b][c]]) is not None]
             av = average([average([v for v,_ in groups[a][c]]) for c in matched])
             bv = average([average([v for v,_ in groups[b][c]]) for c in matched])
             deltas.append({'model': name, 'strategy_a': a, 'strategy_b': b, 'matched_case_count': len(matched),
+                           'accuracy_a': av, 'accuracy_b': bv, 'delta_percentage_points': bv-av if matched else None,
+                           # Retain legacy response keys for saved consumers.
                            'average_a': av, 'average_b': bv, 'delta': bv-av if matched else None,
+                           'unmatched_case_count': unmatched,
                            'non_comparable_case_count': shared-len(matched),
                            'reason': None if matched else 'No matched cases with consistent references and scores'})
     pairs = []
@@ -120,9 +124,20 @@ def analytics(session, project_id, run_id=None, model=None, include_ground_truth
             'matched_case_count': sum(p['matched_case_count'] for p in items),
             'non_comparable_count': sum(p['non_comparable_count'] for p in items),
             'agreement_rate': sum((p['agreement_rate'] or 0)*p['comparable_count'] for p in items)/comparable if comparable else None})
+    strategy_cases = defaultdict(set)
+    if strategy_key:
+        for r, _ in rows:
+            value = metadata(r).get(strategy_key)
+            if value is not None: strategy_cases[(r.model, r.case_id)].add(str(value))
+    matched_strategy_case_ids = {case_id for (_, case_id), values in strategy_cases.items() if len(values) > 1}
+    metadata_keys = sorted({k for r,_ in rows for k in metadata(r)})
     return {**summary(rows), 'total_unique_cases': len({r.case_id for r, _ in rows}), 'total_models': len(models),
             'models': sorted([{'model': m, **summary([(r,d) for r,d in rows if r.model == m])} for m in models], key=lambda x: -(x['average_overall_accuracy'] or 0)),
-            'metadata_keys': sorted({k for r,_ in rows for k in metadata(r)}),
+            'metadata_keys': metadata_keys,
+            'metadata_readiness': {'strategy_key': strategy_key, 'strategy_available': bool(strategy_key and strategy_key in metadata_keys),
+                                   'dimension_key': dimension_key, 'dimension_available': bool(dimension_key and dimension_key in metadata_keys),
+                                   'matched_strategy_cases': len(matched_strategy_case_ids),
+                                   'total_strategy_cases': len({r.case_id for r,_ in rows})},
             'strategies': strategies, 'strategy_deltas': deltas, 'dimensions': dimensions,
             'strategy_summary': [{'value': v, **summary([(r,d) for r,d in rows if str(metadata(r).get(strategy_key)) == v])}
                                  for v in sorted({item['value'] for item in strategies})],

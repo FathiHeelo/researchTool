@@ -9,9 +9,10 @@ import { MetricsSettings } from './MetricsSettings'
 const analysis: ResearchAnalysis = {
   response_count: 2, total_unique_cases: 1, total_models: 2, average_overall_accuracy: 87.5,
   reliability: 100, hallucination_rate: 0, metadata_keys: ['Experiment', 'Custom Dimension'],
+  metadata_readiness: {strategy_key: null, strategy_available: false, dimension_key: null, dimension_available: false, matched_strategy_cases: 0, total_strategy_cases: 1},
   models: [{model: 'Novel Ω', response_count: 1, average_overall_accuracy: 87.5}],
   strategies: [{model: 'Novel Ω', value: 'Strategy Z', response_count: 1}], strategy_deltas: [],
-  dimensions: [], dimension_summary: [], groups: [], agreement: [], errors: [{tag: 'Arbitrary Tag', count: 1, percentage: 50}],
+  dimensions: [{model:'Novel Ω',value:'Researcher-defined dimension',response_count:1,average_overall_accuracy:87.5}], dimension_summary: [], groups: [], agreement: [], errors: [{tag: 'Arbitrary Tag', count: 1, percentage: 50}],
   hallucinated_functions: {}, ground_truth_warning_results: 1, filtered_results: 0, filtered_cases: 0,
   include_ground_truth_warnings: true,
 }
@@ -31,7 +32,11 @@ test('overview dynamic models errors and optional metadata states', async () => 
   fireEvent.click(screen.getByRole('button', {name: 'Errors'}))
   expect(screen.getByText('Arbitrary Tag')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', {name: 'Data Quality Dimensions'}))
-  expect(screen.getByText('No quality-dimension metadata available')).toBeTruthy()
+  expect(screen.getByText('Researcher-defined dimension')).toBeTruthy()
+  expect(screen.getByText(/no quality-dimension metadata key is configured/)).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Quality Dimension Metadata Key'), {target: {value: 'Custom Dimension'}})
+  await waitFor(()=>expect(researchApi.analysis).toHaveBeenLastCalledWith('1',expect.stringContaining('dimension_key=Custom+Dimension'),expect.any(AbortSignal)))
+  expect(await screen.findByText('Available (Custom Dimension)')).toBeTruthy()
 })
 
 test('run metadata and ground truth filters replace stale analysis', async () => {
@@ -45,7 +50,7 @@ test('run metadata and ground truth filters replace stale analysis', async () =>
   fireEvent.click(screen.getByLabelText('Include ground-truth warnings'))
   await waitFor(() => expect(researchApi.analysis).toHaveBeenLastCalledWith('1', expect.stringContaining('include_ground_truth_warnings=false'), expect.any(AbortSignal)))
   expect(await screen.findByText(/1 responses \/ 1 cases filtered/)).toBeTruthy()
-  fireEvent.change(screen.getByLabelText('Strategy metadata'), {target: {value: 'Experiment'}})
+  fireEvent.change(screen.getByLabelText('Strategy Metadata Key'), {target: {value: 'Experiment'}})
   await waitFor(() => expect(researchApi.analysis).toHaveBeenLastCalledWith('1', expect.stringContaining('strategy_key=Experiment'), expect.any(AbortSignal)))
 })
 
