@@ -3,7 +3,7 @@ import {useState} from 'react'
 import {afterEach,expect,test} from 'vitest'
 import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
 import type {NormalizedImport} from '../../api/client'
-import {CaseMetadataEditor} from './CaseMetadataEditor'
+import {CaseMetadataEditor,parseBulkMetadata} from './CaseMetadataEditor'
 
 afterEach(cleanup)
 
@@ -56,6 +56,46 @@ test('assigns a new field individually and in bulk while preserving existing met
   expect(state.cases[1].metadata.find(entry=>entry.label==='Data Quality Dimension')?.value).toBe('Bulk dimension')
   expect(state.responses[1].metadata?.find(entry=>entry.label==='Data Quality Dimension')?.value).toBe('Bulk dimension')
   expect(state.cases.map(item=>item.metadata.find(entry=>entry.label==='Few-shot Prompt')?.value)).toEqual(['Example A','Example B'])
+  fireEvent.click(screen.getByText('Save case metadata'))
+  expect(screen.getByRole('status').textContent).toContain('saved')
+})
+
+test('parses comma and tab rows with whitespace and values containing spaces',()=>{
+  const rows=parseBulkMetadata('  C1 , Completeness  \nC2\t Referential Integrity ',imported.cases,'Few-shot Prompt')
+  expect(rows.map(row=>({caseId:row.caseId,newValue:row.newValue,status:row.status}))).toEqual([
+    {caseId:'C1',newValue:'Completeness',status:'Ready'},
+    {caseId:'C2',newValue:'Referential Integrity',status:'Ready'},
+  ])
+  const numericCases=[{...imported.cases[0],case_id:1},{...imported.cases[1],case_id:'02'}]
+  expect(parseBulkMetadata('01,First\n2,Second',numericCases,'Few-shot Prompt').map(row=>row.status)).toEqual(['Ready','Ready'])
+})
+
+test('reports unknown duplicate empty and malformed rows and disables apply',()=>{
+  render(<Harness/>)
+  fireEvent.change(screen.getByLabelText('Bulk paste metadata'),{target:{value:'C1,First\nC1,Second\nMissing,Value\nC2,\nbroken'}})
+  fireEvent.click(screen.getByText('Preview Bulk Assignment'))
+  const table=screen.getByRole('table',{name:'Bulk metadata preview'})
+  expect(within(table).getAllByText('Duplicate Case ID')).toHaveLength(2)
+  expect(within(table).getByText('Unknown Case ID')).toBeTruthy()
+  expect(within(table).getByText('Empty Value')).toBeTruthy()
+  expect(within(table).getByText('Invalid Line')).toBeTruthy()
+  expect((screen.getByText('Apply Bulk Assignment') as HTMLButtonElement).disabled).toBe(true)
+})
+
+test('bulk paste applies only the selected field and still requires save',()=>{
+  render(<Harness/>)
+  fireEvent.click(screen.getByText('+ Create Metadata Field'))
+  fireEvent.change(screen.getByLabelText('New metadata field name'),{target:{value:'Data Quality Dimension'}})
+  fireEvent.click(screen.getByText('Create'))
+  fireEvent.change(screen.getByLabelText('Bulk paste metadata'),{target:{value:'C1,Completeness\nC2,Referential Integrity'}})
+  fireEvent.click(screen.getByText('Preview Bulk Assignment'))
+  expect(within(screen.getByRole('table',{name:'Bulk metadata preview'})).getByText('Referential Integrity')).toBeTruthy()
+  fireEvent.click(screen.getByText('Apply Bulk Assignment'))
+  const state=JSON.parse(screen.getByTestId('state').textContent || '{}') as NormalizedImport
+  expect(state.cases.map(item=>item.metadata.find(entry=>entry.label==='Data Quality Dimension')?.value)).toEqual(['Completeness','Referential Integrity'])
+  expect(state.cases.map(item=>item.metadata.find(entry=>entry.label==='Few-shot Prompt')?.value)).toEqual(['Example A','Example B'])
+  expect(state.cases.map(item=>item.requirement)).toEqual(['First requirement','Second requirement'])
+  expect(screen.getByRole('status').textContent).toContain('Use Save case metadata')
   fireEvent.click(screen.getByText('Save case metadata'))
   expect(screen.getByRole('status').textContent).toContain('saved')
 })
