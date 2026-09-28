@@ -13,8 +13,11 @@ test('report loads every page and accepted review with bounded requests in order
   return {id:Number(path.split('/').at(-2)),accepted_scores:{custom:1}} as never
  })
  const results=vi.spyOn(client.evaluationApi,'results').mockImplementation(async(_p,_r,q)=>({total:101,models:[],items:Array.from({length:q.includes('page=1&')?100:1},(_,i)=>({id:q.includes('page=1&')?i+1:101}))} as never))
- const data=await loadReport('1','2',new AbortController().signal,()=>{})
+ const data=await loadReport('1','2',new AbortController().signal,()=>{}, {strategy:'Research Strategy',dimension:'Research Dimension'})
  expect(results).toHaveBeenCalledTimes(2);expect(request).toHaveBeenCalledTimes(102)
+ expect(researchApi.analysis).toHaveBeenCalledWith('1',expect.stringContaining('strategy_key=Research+Strategy'),expect.any(AbortSignal))
+ expect(researchApi.analysis).toHaveBeenCalledWith('1',expect.stringContaining('dimension_key=Research+Dimension'),expect.any(AbortSignal))
+ expect(data.roleKeys).toEqual({strategy:'Research Strategy',dimension:'Research Dimension'})
  expect(data.details.map(r=>r.id)).toEqual(Array.from({length:101},(_,i)=>i+1))
  expect(data.details[100].accepted_scores.custom).toBe(1)
 })

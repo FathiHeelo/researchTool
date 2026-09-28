@@ -60,3 +60,9 @@ test('report actions require a completed run',()=>{
  rerender(<ReportActions projectId='1' run={{id:2,status:'running',processed_responses:0,total_responses:1,summary:{}}}/>);expect(screen.queryByText('Print Report')).toBeNull()
  rerender(<ReportActions projectId='1' run={{id:2,status:'completed',processed_responses:1,total_responses:1,summary:{}}}/>);expect(screen.getByText('View Full Report').getAttribute('href')).toBe('/projects/1/runs/2/report')
 })
+
+test('report actions carry selected dynamic metadata roles',()=>{
+ render(<ReportActions projectId='1' run={{id:2,status:'completed',processed_responses:1,total_responses:1,summary:{}}} strategyKey='Strategy Axis' dimensionKey='DQ Axis'/>)
+ expect(screen.getByText('View Full Report').getAttribute('href')).toBe('/projects/1/runs/2/report?strategy_key=Strategy+Axis&dimension_key=DQ+Axis')
+ expect(screen.getByText('Print Report').getAttribute('href')).toContain('print=1')
+})

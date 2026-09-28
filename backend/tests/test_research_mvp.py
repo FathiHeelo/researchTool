@@ -106,7 +106,8 @@ def test_strategy_matching_excludes_and_reports_unmatched_case_ids(client):
     delta = next(item for item in data['strategy_deltas'] if item['model'] == 'Future Model')
     assert delta['matched_case_count'] == 1
     assert delta['unmatched_case_count'] == 1
-    assert data['metadata_readiness']['matched_strategy_cases'] == 1
+    assert data['metadata_readiness']['matched_strategy_cases'] == 2
+    assert data['metadata_readiness']['multi_strategy_matched_cases'] == 1
     assert data['metadata_readiness']['total_strategy_cases'] == 2
 
 

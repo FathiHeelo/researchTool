@@ -7,14 +7,17 @@ export type ReportRun = Omit<EvaluationRun, 'summary'> & { summary: Record<strin
   protocol_snapshot?: {name: string; protocol_version: number; configuration: ProtocolConfiguration}
 } }
 
-export async function loadReport(projectId: string, runId: string, signal: AbortSignal, progress: (n: number, total: number) => void) {
+export async function loadReport(projectId: string, runId: string, signal: AbortSignal, progress: (n: number, total: number) => void,
+  selectedRoles: Partial<Record<'strategy' | 'dimension' | 'group', string>> = {}) {
   const prefix = `/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}`
   const [project, run] = await Promise.all([projectsApi.get(projectId, signal), apiRequest<ReportRun>(prefix, {signal})])
   if (!['completed','completed_with_errors'].includes(run.status)) throw new Error('A completed run is required for a full report.')
   const config = run.summary.protocol_snapshot?.configuration
   const included = config?.include_ground_truth_warnings ?? true
+  const roleKeys = {...(config?.analysis_metadata_keys ?? {}),
+    ...Object.fromEntries(Object.entries(selectedRoles).filter(([,key])=>!!key))}
   const query = new URLSearchParams({run_id: runId, include_ground_truth_warnings: String(included)})
-  for (const [role,key] of Object.entries(config?.analysis_metadata_keys ?? {})) {
+  for (const [role,key] of Object.entries(roleKeys)) {
     if (['strategy','dimension','group'].includes(role) && key) query.set(`${role}_key`,key)
   }
   const [dashboard, analysis, analyst] = await Promise.all([
@@ -36,6 +39,6 @@ export async function loadReport(projectId: string, runId: string, signal: Abort
     page++
   } while (details.length < total)
   if (details.length !== run.processed_responses) throw new Error('Saved result count differs from the run counter. Reload before printing.')
-  return {project,run,dashboard,analysis,analyst,included,details,generated: new Date().toISOString()}
+  return {project,run,dashboard,analysis,analyst,included,roleKeys,details,generated: new Date().toISOString()}
 }
 export type ReportData = Awaited<ReturnType<typeof loadReport>>

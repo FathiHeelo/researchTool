@@ -14,13 +14,16 @@ export function ResearchReportPage() {
   const [retry,setRetry] = useState(0)
   const [enabled,setEnabled] = useState<string[]>([...sections])
   const printed = useRef(false)
+  const strategyKey=params.get('strategy_key')||undefined
+  const dimensionKey=params.get('dimension_key')||undefined
   useEffect(() => {
     const c = new AbortController(); setData(null); setError(''); setProgress('Loading report context…'); printed.current=false
-    loadReport(projectId,runId,c.signal,(n,total)=>{if(!c.signal.aborted)setProgress(`Loading accepted results: ${n} / ${total}`)})
+    loadReport(projectId,runId,c.signal,(n,total)=>{if(!c.signal.aborted)setProgress(`Loading accepted results: ${n} / ${total}`)},
+      {strategy:strategyKey,dimension:dimensionKey})
       .then(d=>{if(!c.signal.aborted)setData(d)})
       .catch(()=>{if(!c.signal.aborted)setError('Unable to load the complete report. Check that the run is completed and the backend is available, then retry.')})
     return ()=>c.abort()
-  },[projectId,runId,retry])
+  },[projectId,runId,retry,strategyKey,dimensionKey])
   useEffect(()=>{
     if (!data || params.get('print')!=='1' || printed.current) return
     const timer=window.setTimeout(()=>{printed.current=true;window.print()},0)
@@ -34,7 +37,7 @@ export function ResearchReportPage() {
 export function ReportContent({data,enabled}: {data: ReportData; enabled: string[]}) {
   const {project,run,dashboard:d,analysis:a,analyst,details} = data
   const metrics=run.summary.metric_configuration ?? run.summary.protocol_snapshot?.configuration.metrics ?? []
-  const roleKeys=run.summary.protocol_snapshot?.configuration.analysis_metadata_keys ?? {}
+  const roleKeys=data.roleKeys ?? run.summary.protocol_snapshot?.configuration.analysis_metadata_keys ?? {}
   const strategyKey=roleKeys.strategy
   const dimensionKey=roleKeys.dimension
   const strategyAvailable=!!strategyKey&&a.metadata_keys.includes(strategyKey)

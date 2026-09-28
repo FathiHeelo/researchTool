@@ -125,18 +125,24 @@ def analytics(session, project_id, run_id=None, model=None, include_ground_truth
             'non_comparable_count': sum(p['non_comparable_count'] for p in items),
             'agreement_rate': sum((p['agreement_rate'] or 0)*p['comparable_count'] for p in items)/comparable if comparable else None})
     strategy_cases = defaultdict(set)
+    strategy_case_ids = set()
     if strategy_key:
         for r, _ in rows:
             value = metadata(r).get(strategy_key)
-            if value is not None: strategy_cases[(r.model, r.case_id)].add(str(value))
-    matched_strategy_case_ids = {case_id for (_, case_id), values in strategy_cases.items() if len(values) > 1}
+            if value is not None:
+                strategy_case_ids.add(r.case_id)
+                strategy_cases[(r.model, r.case_id)].add(str(value))
+    multi_strategy_case_ids = {case_id for (_, case_id), values in strategy_cases.items() if len(values) > 1}
     metadata_keys = sorted({k for r,_ in rows for k in metadata(r)})
     return {**summary(rows), 'total_unique_cases': len({r.case_id for r, _ in rows}), 'total_models': len(models),
             'models': sorted([{'model': m, **summary([(r,d) for r,d in rows if r.model == m])} for m in models], key=lambda x: -(x['average_overall_accuracy'] or 0)),
             'metadata_keys': metadata_keys,
             'metadata_readiness': {'strategy_key': strategy_key, 'strategy_available': bool(strategy_key and strategy_key in metadata_keys),
                                    'dimension_key': dimension_key, 'dimension_available': bool(dimension_key and dimension_key in metadata_keys),
-                                   'matched_strategy_cases': len(matched_strategy_case_ids),
+                                   # Readiness reports metadata coverage. Cross-strategy comparisons
+                                   # retain their stricter matched counts in strategy_deltas.
+                                   'matched_strategy_cases': len(strategy_case_ids),
+                                   'multi_strategy_matched_cases': len(multi_strategy_case_ids),
                                    'total_strategy_cases': len({r.case_id for r,_ in rows})},
             'strategies': strategies, 'strategy_deltas': deltas, 'dimensions': dimensions,
             'strategy_summary': [{'value': v, **summary([(r,d) for r,d in rows if str(metadata(r).get(strategy_key)) == v])}

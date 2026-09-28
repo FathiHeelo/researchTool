@@ -86,7 +86,7 @@ export function ResearchAnalytics({projectId, initialTab, selectedRunId, onRunCh
     <div className="flex flex-wrap gap-3"><select aria-label="Research run" value={run} disabled={exporting} onChange={e => {setRun(e.target.value);onRunChange?.(e.target.value)}}><option value="">All runs</option>{runs.map(r => <option key={r.id} value={r.id}>Run {r.id}</option>)}</select>
       <select aria-label="Research model" value={model} onChange={e => setModel(e.target.value)}><option value="">All models</option>{models.map(m => <option key={m}>{m}</option>)}</select>
       <label><input type="checkbox" disabled={exporting} checked={included} onChange={e => setIncluded(e.target.checked)}/> Include ground-truth warnings</label><button onClick={() => setReload(n => n+1)}>Refresh analysis</button></div>
-    <ReportActions projectId={projectId} run={runs.find(r=>String(r.id)===run)}/>
+    <ReportActions projectId={projectId} run={runs.find(r=>String(r.id)===run)} strategyKey={strategy} dimensionKey={dimension}/>
     <p>Flagged ground-truth cases: {included ? 'Included' : 'Excluded'}. {data ? `${data.filtered_results} responses / ${data.filtered_cases} cases filtered.` : ''}</p>
     <button disabled={!run} onClick={applyRunProtocol}>Use selected run’s protocol analysis settings</button>
     <label className="block">Experiment Variant Metadata Key <select aria-label="Experiment Variant metadata" value={variant} onChange={e=>setVariant(e.target.value)}><option value="">Choose metadata key</option>{keys.map(k=><option key={k}>{k}</option>)}</select></label>

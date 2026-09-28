@@ -6,10 +6,15 @@ export function display(v: unknown): string {
   if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2)
   return typeof v === 'object' ? JSON.stringify(v) : String(v)
 }
-export function ReportActions({projectId, run}: {projectId: string; run?: EvaluationRun}) {
+export function ReportActions({projectId, run, strategyKey, dimensionKey}: {projectId: string; run?: EvaluationRun; strategyKey?: string; dimensionKey?: string}) {
   if (!run || !['completed', 'completed_with_errors'].includes(run.status)) return null
-  const url = `/projects/${encodeURIComponent(projectId)}/runs/${run.id}/report`
-  return <div className="report-actions no-print"><a className="primary-action" href={url}>View Full Report</a><a href={`${url}?print=1`}>Print Report</a></div>
+  const path = `/projects/${encodeURIComponent(projectId)}/runs/${run.id}/report`
+  const roles = new URLSearchParams()
+  if (strategyKey) roles.set('strategy_key',strategyKey)
+  if (dimensionKey) roles.set('dimension_key',dimensionKey)
+  const url = `${path}${roles.size?`?${roles}`:''}`
+  const print = new URLSearchParams(roles); print.set('print','1')
+  return <div className="report-actions no-print"><a className="primary-action" href={url}>View Full Report</a><a href={`${path}?${print}`}>Print Report</a></div>
 }
 export function ModelPerformance({models}: {models: ModelDashboardSummary[]}) {
   const keys = [...new Set(models.flatMap(m => Object.keys(m.average_component_scores)))]
